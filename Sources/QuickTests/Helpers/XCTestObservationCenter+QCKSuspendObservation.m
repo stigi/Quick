@@ -2,7 +2,7 @@
 #import <objc/runtime.h>
 
 @interface XCTestObservationCenter (Redeclaration)
-- (NSMutableSet *)observers;
+- (NSMutableArray *)observers;
 @end
 
 @implementation XCTestObservationCenter (QCKSuspendObservation)
@@ -11,19 +11,21 @@
 /// as a part of the XCTest framework. In particular it is important that we not
 /// suspend the observer added by Nimble, otherwise it is unable to properly
 /// report assertion failures.
-static BOOL (^isFromApple)(id, BOOL *) = ^BOOL(id observer, BOOL *stop){
+static BOOL (^isFromApple)(id, NSUInteger, BOOL *) = ^BOOL(id observer, NSUInteger idx, BOOL *stop){
     return [[NSBundle bundleForClass:[observer class]].bundleIdentifier containsString:@"com.apple.dt.XCTest"];
 };
 
 - (void)qck_suspendObservationForBlock:(void (^)(void))block {
-    NSSet *observersToSuspend = [[self observers] objectsPassingTest:isFromApple];
-    [[self observers] minusSet:observersToSuspend];
+    NSMutableArray *mutableObservers = [self observers];
+    NSIndexSet *indexesOfObserversToSuspend = [mutableObservers indexesOfObjectsPassingTest:isFromApple];
+    NSArray *observersToSuspend = [mutableObservers objectsAtIndexes:indexesOfObserversToSuspend];
+    [mutableObservers removeObjectsAtIndexes:indexesOfObserversToSuspend];
 
     @try {
         block();
     }
     @finally {
-        [[self observers] unionSet:observersToSuspend];
+        [mutableObservers insertObjects:observersToSuspend atIndexes:indexesOfObserversToSuspend];
     }
 }
 
